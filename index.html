@@ -116,9 +116,165 @@
   </div>
 
 <script>
-/* ===== Your Kakuro game logic (unchanged) ===== */
-// (keep your full Kakuro script here – omitted for brevity)
-// ...
+/* ===== Kakuro Game Code ===== */
+// Precompute valid combos
+const kakuroSums={};
+(function(){
+  function go(start,k,sum,path){
+    if(path.length===k){
+      (kakuroSums[`${k},${sum}`] ||= []).push([...path]);
+      return;
+    }
+    for(let d=start;d<=9;d++) go(d+1,k,sum+d,[...path,d]);
+  }
+  for(let k=2;k<=9;k++) go(1,k,0,[]);
+})();
+let N=7; // grid size
+let patternGrid,solutionGrid;
+
+function generatePattern(density){
+  const g=Array.from({length:N},()=>Array(N).fill(' '));
+  for(let r=0;r<N;r++) g[r][0]='#', g[0][r]='#';
+  for(let r=1;r<N;r++) for(let c=1;c<N;c++){
+    if(Math.random()<density) g[r][c]='#';
+  }
+  for(let r=1;r<N;r++) for(let c=1;c<N;c++){
+    if(g[r][c]===' '){
+      const neighbors=[[1,0],[-1,0],[0,1],[0,-1]];
+      const hasNeighbor=neighbors.some(([dr,dc])=>{
+        const nr=r+dr,nc=c+dc;
+        return nr>=0&&nc>=0&&nr<N&&nc<N&&g[nr][nc]===' ';
+      });
+      if(!hasNeighbor) g[r][c]='#';
+    }
+  }
+  return g;
+}
+function getRuns(grid){
+  const runs=[];
+  for(let r=0;r<N;r++){
+    let c=0;
+    while(c<N){
+      if(grid[r][c]===' ' && (c===0||grid[r][c-1]!==' ')){
+        let s=c; while(c<N&&grid[r][c]===' ') c++;
+        if(c-s>1) runs.push({dir:'across',cells:Array.from({length:c-s},(_,i)=>[r,s+i])});
+      } else c++;
+    }
+  }
+  for(let c=0;c<N;c++){
+    let r=0;
+    while(r<N){
+      if(grid[r][c]===' ' && (r===0||grid[r-1]!==' ')){
+        let s=r; while(r<N&&grid[r][c]===' ') r++;
+        if(r-s>1) runs.push({dir:'down',cells:Array.from({length:r-s},(_,i)=>[s+i,c])});
+      } else r++;
+    }
+  }
+  return runs;
+}
+function fillPuzzle(pattern){
+  solutionGrid=Array.from({length:N},()=>Array(N).fill(null));
+  const runs=getRuns(pattern);
+  for(const run of runs){
+    const len=run.cells.length;
+    const possible=Object.keys(kakuroSums).filter(k=>+k.split(',')[0]===len);
+    const pick=possible[Math.floor(Math.random()*possible.length)];
+    const combos=kakuroSums[pick];
+    const combo=combos[Math.floor(Math.random()*combos.length)];
+    run.cells.forEach(([r,c],i)=>solutionGrid[r][c]=combo[i]);
+  }
+  return runs;
+}
+function computeClues(pattern,sol){
+  const clues=Array.from({length:N},()=>Array(N).fill(null));
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    if(pattern[r][c]!=='#') continue;
+    let across=null,down=null;
+    if(c+1<N && pattern[r][c+1]===' '){
+      let sum=0,cc=c+1,ct=0;
+      while(cc<N&&pattern[r][cc]===' '){ sum+=sol[r][cc]; ct++; cc++; }
+      if(ct>1) across=sum;
+    }
+    if(r+1<N && pattern[r+1][c]===' '){
+      let sum=0,rr=r+1,ct=0;
+      while(rr<N&&pattern[rr][c]===' '){ sum+=sol[rr][c]; ct++; rr++; }
+      if(ct>1) down=sum;
+    }
+    if(across||down) clues[r][c]={across,down};
+  }
+  return clues;
+}
+function render(pattern,clues){
+  const board=document.getElementById('board');
+  board.innerHTML='';
+  board.style.gridTemplateColumns=`repeat(${N},1fr)`;
+  board.style.gridTemplateRows=`repeat(${N},1fr)`;
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const cell=document.createElement('div'); cell.className='cell';
+    if(pattern[r][c]==='#'){
+      if(clues[r][c]){
+        cell.classList.add('clue','divider');
+        if(clues[r][c].across) cell.classList.add('tri-across');
+        if(clues[r][c].down) cell.classList.add('tri-down');
+        if(clues[r][c].across){ const s=document.createElement('span'); s.className='across'; s.textContent=clues[r][c].across; cell.appendChild(s); }
+        if(clues[r][c].down){ const s=document.createElement('span'); s.className='down'; s.textContent=clues[r][c].down; cell.appendChild(s); }
+      } else {
+        cell.classList.add('black');
+      }
+    } else {
+      cell.classList.add('white');
+      const inp=document.createElement('input');
+      inp.maxLength=1; inp.inputMode='numeric'; inp.pattern='[1-9]';
+      inp.addEventListener('input', e=>{
+        const v=e.target.value.replace(/[^1-9]/g,''); e.target.value=v.slice(0,1);
+      });
+      cell.appendChild(inp);
+    }
+    board.appendChild(cell);
+  }
+}
+function newPuzzle(){
+  const diff=document.getElementById('difficulty').value;
+  const density = diff==='easy'?0.15 : diff==='hard'?0.35 : 0.25;
+  let pattern, runs;
+  do {
+    pattern=generatePattern(density);
+    runs=fillPuzzle(pattern);
+  } while(runs.length<6);
+  const clues=computeClues(pattern,solutionGrid);
+  patternGrid=pattern;
+  render(pattern,clues);
+  document.getElementById('msg').textContent='';
+}
+function checkSolution(){
+  const inputs=document.querySelectorAll('.white input');
+  let i=0,incomplete=false,wrong=false;
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(patternGrid[r][c]===' '){
+    const val=inputs[i].value;
+    if(!val) incomplete=true;
+    else if(parseInt(val)!==solutionGrid[r][c]) wrong=true;
+    i++;
+  }
+  if(!incomplete && !wrong) document.getElementById('msg').textContent='✅ Correct!';
+  else if(wrong) document.getElementById('msg').textContent='❌ Incorrect!';
+  else document.getElementById('msg').textContent='⚠️ Incomplete!';
+}
+function giveUp(){
+  const inputs=document.querySelectorAll('.white input'); let i=0;
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(patternGrid[r][c]===' '){
+    inputs[i].value=solutionGrid[r][c];
+    inputs[i].style.background='#d4edda';
+    i++;
+  }
+  document.getElementById('msg').textContent='🔎 Solution revealed.';
+}
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById('checkBtn').addEventListener('click',checkSolution);
+  document.getElementById('giveUpBtn').addEventListener('click',giveUp);
+  document.getElementById('newBtn').addEventListener('click',newPuzzle);
+  document.getElementById('difficulty').addEventListener('change',newPuzzle);
+  newPuzzle();
+});
 
 /* ===== Service Worker Registration ===== */
 if ("serviceWorker" in navigator) {
