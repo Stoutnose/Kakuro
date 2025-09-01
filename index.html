@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="manifest" href="/Kakuro/manifest.json">
+  <meta name="theme-color" content="#000000">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kakuro – Play & Learn</title>
+  <style>
+    :root{ --accent:#0d6efd; }
+    body{
+      font-family:Arial,Helvetica,sans-serif;
+      background:#f8f9fa;
+      margin:0;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+      min-height:100vh;
+      padding:20px;
+      gap:20px;
+    }
+    .side{
+      flex:1;
+      background:#fff;
+      padding:20px;
+      border-radius:10px;
+      box-shadow:0 4px 10px rgba(0,0,0,0.1);
+      min-width:200px;
+      max-width:350px;
+    }
+    .main{
+      flex:2;
+      background:#fff;
+      padding:clamp(10px,2vw,20px);
+      text-align:center;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      width:100%;
+      max-width:900px;
+      box-shadow:0 4px 10px rgba(0,0,0,0.1);
+      border-radius:10px;
+    }
+    h1{margin:.5rem 0;font-size:clamp(20px,5vw,32px)}
+    h2{margin:.5rem 0;color:#0d6efd}
+    .grid{display:grid;margin:12px auto;border:3px solid #000;width:clamp(250px,95vw,600px);aspect-ratio:1/1;background:#000}
+    .cell{border:1px solid #444;position:relative;overflow:hidden;box-sizing:border-box}
+    .black{background:#000}
+    .clue{background:#000;position:relative}
+    .clue.tri-down::before{content:"";position:absolute;inset:0;background:#fff;clip-path:polygon(0 0,0 100%,100% 100%);z-index:1}
+    .clue.tri-across::after{content:"";position:absolute;inset:0;background:#fff;clip-path:polygon(100% 0,0 0,100% 100%);z-index:1}
+    .clue.divider{background-image:linear-gradient(135deg, transparent 49.5%, #000 50%, transparent 50.5%)}
+    .across{position:absolute;top:2px;right:3px;font-size:clamp(10px,2.5vw,16px);color:#000;font-weight:700;z-index:2}
+    .down{position:absolute;bottom:2px;left:3px;font-size:clamp(10px,2.5vw,16px);color:#000;font-weight:700;z-index:2}
+    .white{background:#fff}
+    .white input{width:100%;height:100%;border:none;text-align:center;font-size:clamp(14px,6vw,28px);background:#fff}
+    .white input:focus{outline:2px solid var(--accent);background:#eef7ff}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px;width:100%}
+    select,button{padding:clamp(8px,2vw,12px) clamp(12px,3vw,20px);border:none;border-radius:8px;cursor:pointer;font-size:clamp(12px,3.5vw,16px)}
+    button{flex:1 1 auto;min-width:90px}
+    #checkBtn{background:#198754;color:#fff}
+    #giveUpBtn{background:#dc3545;color:#fff}
+    #newBtn{background:#0d6efd;color:#fff}
+    #msg{margin-top:8px;font-weight:600;font-size:clamp(12px,3.5vw,16px)}
+    @media(max-width:1000px){
+      body{flex-direction:column;align-items:center}
+      .side{max-width:100%;width:100%}
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Rules Section -->
+  <div class="side" style="border:3px solid blue">
+    <h2>📜 How to Play</h2>
+    <ul>
+      <li>Fill white squares with numbers 1–9.</li>
+      <li>Numbers in each run must add up to the clue shown.</li>
+      <li>No number may repeat within a run.</li>
+      <li>Across clues apply to numbers on the right →</li>
+      <li>Down clues apply to numbers below ↓</li>
+      <li>Use logic and elimination to solve!</li>
+    </ul>
+  </div>
+
+  <!-- Game Section -->
+  <div class="main">
+    <h1>Kakuro</h1>
+    <label>Difficulty:
+      <select id="difficulty">
+        <option value="easy">Easy</option>
+        <option value="medium" selected>Medium</option>
+        <option value="hard">Hard</option>
+      </select>
+    </label>
+    <div id="board" class="grid"></div>
+    <div class="controls">
+      <button id="checkBtn">Check</button>
+      <button id="giveUpBtn">Give Up</button>
+      <button id="newBtn">New Puzzle</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+
+  <!-- Facts Section -->
+  <div class="side" style="border:3px solid red">
+    <h2>🤓 Fun Facts & History</h2>
+    <ul>
+      <li>Kakuro is sometimes called "Cross Sums."</li>
+      <li>It first appeared in U.S. magazines in the 1950s.</li>
+      <li>It became hugely popular in Japan in the 1980s.</li>
+      <li>Kakuro is like a mix of Sudoku + crossword puzzles.</li>
+      <li>Some call it "the world’s most addictive puzzle."</li>
+      <li>Clues are unique – each has only one correct set of numbers.</li>
+    </ul>
+  </div>
+
+<script>
+/* ===== Your Kakuro game logic (unchanged) ===== */
+// (keep your full Kakuro script here – omitted for brevity)
+// ...
+
+/* ===== Service Worker Registration ===== */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/Kakuro/service-worker.js")
+    .then(() => console.log("Service Worker Registered"))
+    .catch(err => console.error("SW error:", err));
+}
+</script>
+</body>
+</html>
