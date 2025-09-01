@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kakuro – Play & Learn</title>
+<style>
+  :root{ --accent:#0d6efd; }
+  body{
+    font-family:Arial,Helvetica,sans-serif;
+    background:#f8f9fa;
+    margin:0;
+    display:flex;
+    justify-content:center;
+    align-items:flex-start;
+    min-height:100vh;
+    padding:20px;
+    gap:20px;
+  }
+
+  /* Three-column layout */
+  .side{
+    flex:1;
+    background:#fff;
+    padding:20px;
+    border-radius:10px;
+    box-shadow:0 4px 10px rgba(0,0,0,0.1);
+    min-width:200px;
+    max-width:350px;
+  }
+  .main{
+    flex:2;
+    background:#fff;
+    padding:clamp(10px,2vw,20px);
+    text-align:center;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    width:100%;
+    max-width:900px;
+    box-shadow:0 4px 10px rgba(0,0,0,0.1);
+    border-radius:10px;
+  }
+  h1{margin:.5rem 0;font-size:clamp(20px,5vw,32px)}
+  h2{margin:.5rem 0;color:#0d6efd}
+
+  /* Grid */
+  .grid{display:grid;margin:12px auto;border:3px solid #000;width:clamp(250px,95vw,600px);aspect-ratio:1/1;background:#000}
+  .cell{border:1px solid #444;position:relative;overflow:hidden;box-sizing:border-box}
+  .black{background:#000}
+
+  /* Clues */
+  .clue{background:#000;position:relative}
+  .clue.tri-down::before{content:"";position:absolute;inset:0;background:#fff;clip-path:polygon(0 0,0 100%,100% 100%);z-index:1}
+  .clue.tri-across::after{content:"";position:absolute;inset:0;background:#fff;clip-path:polygon(100% 0,0 0,100% 100%);z-index:1}
+  .clue.divider{background-image:linear-gradient(135deg, transparent 49.5%, #000 50%, transparent 50.5%)}
+  .across{position:absolute;top:2px;right:3px;font-size:clamp(10px,2.5vw,16px);color:#000;font-weight:700;z-index:2}
+  .down{position:absolute;bottom:2px;left:3px;font-size:clamp(10px,2.5vw,16px);color:#000;font-weight:700;z-index:2}
+
+  /* White cells */
+  .white{background:#fff}
+  .white input{width:100%;height:100%;border:none;text-align:center;font-size:clamp(14px,6vw,28px);background:#fff}
+  .white input:focus{outline:2px solid var(--accent);background:#eef7ff}
+
+  /* Controls */
+  .controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:12px;width:100%}
+  select,button{padding:clamp(8px,2vw,12px) clamp(12px,3vw,20px);border:none;border-radius:8px;cursor:pointer;font-size:clamp(12px,3.5vw,16px)}
+  button{flex:1 1 auto;min-width:90px}
+  #checkBtn{background:#198754;color:#fff}
+  #giveUpBtn{background:#dc3545;color:#fff}
+  #newBtn{background:#0d6efd;color:#fff}
+  #msg{margin-top:8px;font-weight:600;font-size:clamp(12px,3.5vw,16px)}
+
+  /* Responsive stack */
+  @media(max-width:1000px){
+    body{flex-direction:column;align-items:center}
+    .side{max-width:100%;width:100%}
+  }
+</style>
+</head>
+
+<body>
+  <!-- Rules Section -->
+  <div class="side" style="border:3px solid blue">
+    <h2>📜 How to Play</h2>
+    <ul>
+      <li>Fill white squares with numbers 1–9.</li>
+      <li>Numbers in each run must add up to the clue shown.</li>
+      <li>No number may repeat within a run.</li>
+      <li>Across clues apply to numbers on the right →</li>
+      <li>Down clues apply to numbers below ↓</li>
+      <li>Use logic and elimination to solve!</li>
+    </ul>
+  </div>
+
+  <!-- Game Section -->
+  <div class="main">
+    <h1>Kakuro</h1>
+    <label>Difficulty:
+      <select id="difficulty">
+        <option value="easy">Easy</option>
+        <option value="medium" selected>Medium</option>
+        <option value="hard">Hard</option>
+      </select>
+    </label>
+    <div id="board" class="grid"></div>
+    <div class="controls">
+      <button id="checkBtn">Check</button>
+      <button id="giveUpBtn">Give Up</button>
+      <button id="newBtn">New Puzzle</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+
+  <!-- Facts Section -->
+  <div class="side" style="border:3px solid red">
+    <h2>🤓 Fun Facts & History</h2>
+    <ul>
+      <li>Kakuro is sometimes called "Cross Sums."</li>
+      <li>It first appeared in U.S. magazines in the 1950s.</li>
+      <li>It became hugely popular in Japan in the 1980s.</li>
+      <li>Kakuro is like a mix of Sudoku + crossword puzzles.</li>
+      <li>Some call it "the world’s most addictive puzzle."</li>
+      <li>Clues are unique – each has only one correct set of numbers.</li>
+    </ul>
+  </div>
+
+<script>
+/* ===== Precompute valid combos ===== */
+const kakuroSums={};
+(function(){
+  function go(start,k,sum,path){
+    if(path.length===k){
+      (kakuroSums[`${k},${sum}`] ||= []).push([...path]);
+      return;
+    }
+    for(let d=start;d<=9;d++) go(d+1,k,sum+d,[...path,d]);
+  }
+  for(let k=2;k<=9;k++) go(1,k,0,[]);
+})();
+
+let N=7; // grid size
+let patternGrid,solutionGrid;
+
+/* ===== Generate random pattern ===== */
+function generatePattern(density){
+  const g=Array.from({length:N},()=>Array(N).fill(' '));
+  for(let r=0;r<N;r++) g[r][0]='#', g[0][r]='#'; // top & left borders black
+  for(let r=1;r<N;r++) for(let c=1;c<N;c++){
+    if(Math.random()<density) g[r][c]='#';
+  }
+  // cleanup: remove single white cells
+  for(let r=1;r<N;r++) for(let c=1;c<N;c++){
+    if(g[r][c]===' '){
+      const neighbors=[[1,0],[-1,0],[0,1],[0,-1]];
+      const hasNeighbor=neighbors.some(([dr,dc])=>{
+        const nr=r+dr,nc=c+dc;
+        return nr>=0&&nc>=0&&nr<N&&nc<N&&g[nr][nc]===' ';
+      });
+      if(!hasNeighbor) g[r][c]='#';
+    }
+  }
+  return g;
+}
+
+/* ===== Find runs (≥2 white cells) ===== */
+function getRuns(grid){
+  const runs=[];
+  // across
+  for(let r=0;r<N;r++){
+    let c=0;
+    while(c<N){
+      if(grid[r][c]===' ' && (c===0||grid[r][c-1]!==' ')){
+        let s=c; while(c<N&&grid[r][c]===' ') c++;
+        if(c-s>1) runs.push({dir:'across',cells:Array.from({length:c-s},(_,i)=>[r,s+i])});
+      } else c++;
+    }
+  }
+  // down
+  for(let c=0;c<N;c++){
+    let r=0;
+    while(r<N){
+      if(grid[r][c]===' ' && (r===0||grid[r-1]!==' ')){
+        let s=r; while(r<N&&grid[r][c]===' ') r++;
+        if(r-s>1) runs.push({dir:'down',cells:Array.from({length:r-s},(_,i)=>[s+i,c])});
+      } else r++;
+    }
+  }
+  return runs;
+}
+
+/* ===== Fill puzzle with random valid numbers ===== */
+function fillPuzzle(pattern){
+  solutionGrid=Array.from({length:N},()=>Array(N).fill(null));
+  const runs=getRuns(pattern);
+  for(const run of runs){
+    const len=run.cells.length;
+    const possible=Object.keys(kakuroSums).filter(k=>+k.split(',')[0]===len);
+    const pick=possible[Math.floor(Math.random()*possible.length)];
+    const combos=kakuroSums[pick];
+    const combo=combos[Math.floor(Math.random()*combos.length)];
+    run.cells.forEach(([r,c],i)=>solutionGrid[r][c]=combo[i]);
+  }
+  return runs;
+}
+
+/* ===== Build clues dynamically ===== */
+function computeClues(pattern,sol){
+  const clues=Array.from({length:N},()=>Array(N).fill(null));
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    if(pattern[r][c]!=='#') continue;
+    let across=null,down=null;
+    if(c+1<N && pattern[r][c+1]===' '){
+      let sum=0,cc=c+1,ct=0;
+      while(cc<N&&pattern[r][cc]===' '){ sum+=sol[r][cc]; ct++; cc++; }
+      if(ct>1) across=sum;
+    }
+    if(r+1<N && pattern[r+1][c]===' '){
+      let sum=0,rr=r+1,ct=0;
+      while(rr<N&&pattern[rr][c]===' '){ sum+=sol[rr][c]; ct++; rr++; }
+      if(ct>1) down=sum;
+    }
+    if(across||down) clues[r][c]={across,down};
+  }
+  return clues;
+}
+
+/* ===== Render ===== */
+function render(pattern,clues){
+  const board=document.getElementById('board');
+  board.innerHTML='';
+  board.style.gridTemplateColumns=`repeat(${N},1fr)`;
+  board.style.gridTemplateRows=`repeat(${N},1fr)`;
+
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const cell=document.createElement('div'); cell.className='cell';
+    if(pattern[r][c]==='#'){
+      if(clues[r][c]){
+        cell.classList.add('clue','divider');
+        if(clues[r][c].across) cell.classList.add('tri-across');
+        if(clues[r][c].down) cell.classList.add('tri-down');
+        if(clues[r][c].across){ const s=document.createElement('span'); s.className='across'; s.textContent=clues[r][c].across; cell.appendChild(s); }
+        if(clues[r][c].down){ const s=document.createElement('span'); s.className='down'; s.textContent=clues[r][c].down; cell.appendChild(s); }
+      } else {
+        cell.classList.add('black');
+      }
+    } else {
+      cell.classList.add('white');
+      const inp=document.createElement('input');
+      inp.maxLength=1; inp.inputMode='numeric'; inp.pattern='[1-9]';
+      inp.addEventListener('input', e=>{
+        const v=e.target.value.replace(/[^1-9]/g,''); e.target.value=v.slice(0,1);
+      });
+      cell.appendChild(inp);
+    }
+    board.appendChild(cell);
+  }
+}
+
+/* ===== Controls ===== */
+function newPuzzle(){
+  const diff=document.getElementById('difficulty').value;
+  const density = diff==='easy'?0.15 : diff==='hard'?0.35 : 0.25;
+  let pattern, runs;
+  do {
+    pattern=generatePattern(density);
+    runs=fillPuzzle(pattern);
+  } while(runs.length<6);
+  const clues=computeClues(pattern,solutionGrid);
+  patternGrid=pattern;
+  render(pattern,clues);
+  document.getElementById('msg').textContent='';
+}
+
+function checkSolution(){
+  const inputs=document.querySelectorAll('.white input');
+  let i=0,incomplete=false,wrong=false;
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(patternGrid[r][c]===' '){
+    const val=inputs[i].value;
+    if(!val) incomplete=true;
+    else if(parseInt(val)!==solutionGrid[r][c]) wrong=true;
+    i++;
+  }
+  if(!incomplete && !wrong) document.getElementById('msg').textContent='✅ Correct!';
+  else if(wrong) document.getElementById('msg').textContent='❌ Incorrect!';
+  else document.getElementById('msg').textContent='⚠️ Incomplete!';
+}
+
+function giveUp(){
+  const inputs=document.querySelectorAll('.white input'); let i=0;
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(patternGrid[r][c]===' '){
+    inputs[i].value=solutionGrid[r][c];
+    inputs[i].style.background='#d4edda';
+    i++;
+  }
+  document.getElementById('msg').textContent='🔎 Solution revealed.';
+}
+
+document.getElementById('checkBtn').addEventListener('click',checkSolution);
+document.getElementById('giveUpBtn').addEventListener('click',giveUp);
+document.getElementById('newBtn').addEventListener('click',newPuzzle);
+document.getElementById('difficulty').addEventListener('change',newPuzzle);
+
+newPuzzle();
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/service-worker.js")
+      .then(() => console.log("Service Worker Registered"));
+  }
+</script>
+</body>
+</html>
